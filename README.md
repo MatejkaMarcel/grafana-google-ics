@@ -24,6 +24,9 @@ secret and is never sent to the browser.
   pattern Google Calendar uses for edited recurring events
 - ICS URL stored as an encrypted secret, never exposed to the browser
 - Optional per-query result limit ("Max events")
+- All-day events are anchored to the calendar's own time zone
+  (`X-WR-TIMEZONE`), not UTC, so they render as exactly one day regardless
+  of the viewer's time zone
 
 ## Installation
 
@@ -75,10 +78,12 @@ events it found in the next month.
 
 ## Building a calendar view
 
-Field names line up directly with the community
-[Calendar panel](https://grafana.com/grafana/plugins/marcusolsson-calendar-panel/)
-by Marcus Olsson: install it, then map `time` → *Time field*, `end_time` →
-*End time field*, `title` → *Text field*, `location` → *Location field*.
+Field names line up directly with the [Business Calendar
+panel](https://grafana.com/grafana/plugins/marcusolsson-calendar-panel/)
+(`marcusolsson-calendar-panel`, formerly "Calendar" by Marcus Olsson, now
+maintained by Volkov Labs): install it, then map `time` → *Time field*,
+`end_time` → *End time field*, `title` → *Text field*, `location` →
+*Location field*.
 
 ## Known limitations
 
@@ -86,6 +91,9 @@ by Marcus Olsson: install it, then map `time` → *Time field*, `end_time` →
 - `RDATE` (extra occurrences added without their own `RRULE`) is not evaluated
 - Timezones are resolved via the `TZID` parameter against the host's IANA
   timezone database; falls back to UTC if resolution fails
+- All-day events are anchored to the calendar's `X-WR-TIMEZONE`; if a feed
+  doesn't set that property, all-day events fall back to UTC (which can
+  reintroduce the two-day rendering issue for viewers in a non-UTC time zone)
 
 ## Development
 

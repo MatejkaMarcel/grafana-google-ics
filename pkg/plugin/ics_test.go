@@ -9,6 +9,7 @@ import (
 const sampleICS = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Google Inc//Google Calendar 70.9054//EN
+X-WR-TIMEZONE:Europe/Berlin
 BEGIN:VEVENT
 UID:single-event@example.com
 DTSTAMP:20260101T000000Z
@@ -130,5 +131,52 @@ func TestParseICSRangeFiltering(t *testing.T) {
 		if e.UID == "single-event@example.com" {
 			t.Errorf("single event (2026-01-15) should not be in range %v..%v", from, to)
 		}
+	}
+}
+
+// TestParseICSAllDayAnchoredToCalendarTimezone reproduces the reported bug:
+// a one-day all-day event was rendered across two days in the calendar panel
+// because DATE-only values were anchored to UTC. Once the viewer's browser
+// re-renders a UTC midnight in a positive-offset time zone (e.g. Europe/Berlin,
+// UTC+2 in September), it drifts into the early morning of the same day and,
+// for DTEND, past midnight of the *next* day -- which is exactly what made a
+// single-day event appear to span two days. Anchoring to the calendar's own
+// X-WR-TIMEZONE keeps the event exactly on its intended day.
+func TestParseICSAllDayAnchoredToCalendarTimezone(t *testing.T) {
+	const icsWithAllDayEvent = `BEGIN:VCALENDAR
+VERSION:2.0
+X-WR-TIMEZONE:Europe/Berlin
+BEGIN:VEVENT
+UID:one-day@example.com
+DTSTAMP:20260101T000000Z
+DTSTART;VALUE=DATE:20260929
+DTEND;VALUE=DATE:20260930
+SUMMARY:Ein Tag
+END:VEVENT
+END:VCALENDAR
+`
+	from := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+
+	events, err := parseICS(strings.NewReader(icsWithAllDayEvent), from, to)
+	if err != nil {
+		t.Fatalf("parseICS returned an error: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Skipf("Europe/Berlin tzdata not available in this environment: %v", err)
+	}
+
+	wantStart := time.Date(2026, 9, 29, 0, 0, 0, 0, berlin)
+	wantEnd := time.Date(2026, 9, 30, 0, 0, 0, 0, berlin)
+	if !events[0].Start.Equal(wantStart) {
+		t.Errorf("Start = %v, want %v (anchored to the calendar's own time zone, not UTC)", events[0].Start, wantStart)
+	}
+	if !events[0].End.Equal(wantEnd) {
+		t.Errorf("End = %v, want %v", events[0].End, wantEnd)
 	}
 }

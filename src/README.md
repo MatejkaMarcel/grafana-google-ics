@@ -7,6 +7,7 @@ Zeigt Termine aus einem öffentlichen Google-Kalender (ICS/iCal-Feed) in Grafana
 - Ruft den ICS-Feed **serverseitig** über das Plugin-Backend ab (keine CORS-Probleme wie bei einem reinen Browser-Abruf)
 - Unterstützt wiederkehrende Termine (RRULE), Ausnahmen (EXDATE) und einzeln verschobene/abgesagte Termine (RECURRENCE-ID)
 - Die ICS-URL wird verschlüsselt gespeichert und nie an den Browser übertragen
+- Ganztägige Termine werden anhand der Kalender-eigenen Zeitzone (`X-WR-TIMEZONE`) statt UTC verankert, damit sie in Kalender-Panels als genau ein Tag erscheinen
 
 ## Voraussetzungen
 

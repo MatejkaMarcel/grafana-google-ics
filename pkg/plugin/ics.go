@@ -44,6 +44,27 @@ func parseICS(r io.Reader, rangeFrom, rangeTo time.Time) ([]CalendarEvent, error
 		return nil, err
 	}
 
+	// All-day (DATE-only) values have no time zone of their own. Anchoring
+	// them to UTC would shift them by the viewer's UTC offset once Grafana
+	// renders them in local time, which can spill a single-day event into a
+	// neighbouring day in the calendar panel. Anchor them instead to the
+	// calendar's own time zone (X-WR-TIMEZONE, a de-facto standard property
+	// Google Calendar always sets) so a whole-day event stays a whole day
+	// regardless of the viewer's time zone. Falls back to UTC if absent.
+	allDayLoc := time.UTC
+	for _, line := range lines {
+		prop, ok := parseLine(line)
+		if !ok {
+			continue
+		}
+		if prop.name == "X-WR-TIMEZONE" {
+			if loc, err := time.LoadLocation(prop.value); err == nil {
+				allDayLoc = loc
+			}
+			break
+		}
+	}
+
 	var events []rawEvent
 	var current *rawEvent
 
@@ -99,14 +120,14 @@ func parseICS(r io.Reader, rangeFrom, rangeTo time.Time) ([]CalendarEvent, error
 
 		if g.master == nil {
 			for _, ov := range g.overrides {
-				if e, ok := eventFromProps(uid, ov.props); ok && overlaps(e.Start, e.End, rangeFrom, rangeTo) {
+				if e, ok := eventFromProps(uid, ov.props, allDayLoc); ok && overlaps(e.Start, e.End, rangeFrom, rangeTo) {
 					out = append(out, e)
 				}
 			}
 			continue
 		}
 
-		base, ok := eventFromProps(uid, g.master.props)
+		base, ok := eventFromProps(uid, g.master.props, allDayLoc)
 		if !ok {
 			continue
 		}
@@ -147,7 +168,7 @@ func parseICS(r io.Reader, rangeFrom, rangeTo time.Time) ([]CalendarEvent, error
 				continue
 			}
 			for _, v := range strings.Split(p.value, ",") {
-				if t, _, err := parseICSTime(v, p.params); err == nil {
+				if t, _, err := parseICSTime(v, p.params, allDayLoc); err == nil {
 					exdates[occurrenceKey(t)] = true
 				}
 			}
@@ -160,7 +181,7 @@ func parseICS(r io.Reader, rangeFrom, rangeTo time.Time) ([]CalendarEvent, error
 			if !hasRecID {
 				continue
 			}
-			recID, _, err := parseICSTime(recIDProp.value, recIDProp.params)
+			recID, _, err := parseICSTime(recIDProp.value, recIDProp.params, allDayLoc)
 			if err != nil {
 				continue
 			}
@@ -169,7 +190,7 @@ func parseICS(r io.Reader, rangeFrom, rangeTo time.Time) ([]CalendarEvent, error
 				cancelled[key] = true
 				continue
 			}
-			if e, ok := eventFromProps(uid, ov.props); ok {
+			if e, ok := eventFromProps(uid, ov.props, allDayLoc); ok {
 				overridesByOccurrence[key] = e
 			}
 		}
@@ -228,7 +249,7 @@ func overlaps(start, end, rangeFrom, rangeTo time.Time) bool {
 	return start.Before(rangeTo) && end.After(rangeFrom)
 }
 
-func eventFromProps(uid string, props []icsProperty) (CalendarEvent, bool) {
+func eventFromProps(uid string, props []icsProperty, allDayLoc *time.Location) (CalendarEvent, bool) {
 	e := CalendarEvent{UID: uid}
 	var haveStart, haveEnd bool
 	var duration time.Duration
@@ -242,13 +263,13 @@ func eventFromProps(uid string, props []icsProperty) (CalendarEvent, bool) {
 		case "DESCRIPTION":
 			e.Description = unescapeText(p.value)
 		case "DTSTART":
-			if t, allDay, err := parseICSTime(p.value, p.params); err == nil {
+			if t, allDay, err := parseICSTime(p.value, p.params, allDayLoc); err == nil {
 				e.Start = t
 				e.AllDay = allDay
 				haveStart = true
 			}
 		case "DTEND":
-			if t, _, err := parseICSTime(p.value, p.params); err == nil {
+			if t, _, err := parseICSTime(p.value, p.params, allDayLoc); err == nil {
 				e.End = t
 				haveEnd = true
 			}
@@ -381,11 +402,13 @@ func parseICSDuration(v string) (time.Duration, error) {
 }
 
 // parseICSTime parses a DATE or DATE-TIME ICS value. Returns (time, isAllDay, error).
-func parseICSTime(v string, params map[string]string) (time.Time, bool, error) {
+// allDayLoc anchors DATE-only (all-day) values, which have no time zone of
+// their own in the ICS format.
+func parseICSTime(v string, params map[string]string, allDayLoc *time.Location) (time.Time, bool, error) {
 	v = strings.TrimSpace(v)
 	switch {
 	case len(v) == 8:
-		t, err := time.ParseInLocation("20060102", v, time.UTC)
+		t, err := time.ParseInLocation("20060102", v, allDayLoc)
 		return t, true, err
 	case strings.HasSuffix(v, "Z"):
 		t, err := time.Parse("20060102T150405Z", v)
