@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "datasource",
+  "name": "Google Calendar ICS",
+  "id": "custom-googlecalendarics-datasource",
+  "metrics": true,
+  "backend": true,
+  "executable": "gpx_google_calendar_ics",
+  "info": {
+    "description": "Zeigt Termine aus einem öffentlichen Google-Kalender (ICS/iCal-Feed) in Grafana an.",
+    "author": {
+      "name": "Marcel Matejka"
+    },
+    "keywords": ["datasource"],
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [],
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=12.3.0",
+    "plugins": []
+  }
+}
