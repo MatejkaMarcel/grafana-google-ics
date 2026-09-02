@@ -70,7 +70,7 @@ func (d *Datasource) fetchEvents(ctx context.Context, from, to time.Time) ([]Cal
 	if err != nil {
 		return nil, fmt.Errorf("ICS-Kalender konnte nicht abgerufen werden: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
