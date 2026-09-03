@@ -8,6 +8,8 @@ Zeigt Termine aus einem öffentlichen Google-Kalender (ICS/iCal-Feed) in Grafana
 - Unterstützt wiederkehrende Termine (RRULE), Ausnahmen (EXDATE) und einzeln verschobene/abgesagte Termine (RECURRENCE-ID)
 - Die ICS-URL wird verschlüsselt gespeichert und nie an den Browser übertragen
 - Ganztägige Termine werden anhand der Kalender-eigenen Zeitzone (`X-WR-TIMEZONE`) statt UTC verankert, damit sie in Kalender-Panels als genau ein Tag erscheinen
+- Konfigurierbare "Farbregeln" (Textmuster im Titel → Zahlenwert) für Kalender-Panels, die Termine nur über numerische Thresholds einfärben können (z.B. Business Calendar) — Details im GitHub-README, Abschnitt "Color rules"
+- Beliebig viele **weitere Kalender** pro Datenquelle hinzufügbar (per Knopfdruck) — werden serverseitig gemeinsam abgerufen und zu einem einzigen, zeitlich sortierten Ergebnis zusammengeführt; Farbregeln gelten automatisch über alle Kalender hinweg
 
 ## Voraussetzungen
 
@@ -32,3 +34,5 @@ Zeigt Termine aus einem öffentlichen Google-Kalender (ICS/iCal-Feed) in Grafana
 | `description` | Beschreibung |
 | `all_day` | `true` bei ganztägigen Terminen |
 | `uid` | Eindeutige Termin-ID aus dem Kalender |
+| `color_value` | Wert der ersten passenden Farbregel, sonst `0` |
+| `calendar` | Name des zusätzlichen Kalenders, aus dem der Termin stammt; leer beim Hauptkalender |

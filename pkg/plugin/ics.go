@@ -21,6 +21,10 @@ type CalendarEvent struct {
 	Start       time.Time
 	End         time.Time
 	AllDay      bool
+	// CalendarName identifies which configured calendar this event came
+	// from, when multiple calendars are merged. Set by the caller after
+	// parseICS returns, not by parseICS itself.
+	CalendarName string
 }
 
 type icsProperty struct {

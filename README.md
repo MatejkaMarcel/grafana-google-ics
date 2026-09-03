@@ -1,5 +1,7 @@
 # Google Calendar (ICS) Datasource for Grafana
 
+<img src=".github/banner.png" alt="Google Calendar ICS" width="320">
+
 ![Grafana](https://img.shields.io/badge/Grafana-%3E%3D12.3.0-orange?logo=grafana&logoColor=white)
 ![Backend](https://img.shields.io/badge/backend-Go-00ADD8?logo=go&logoColor=white)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
@@ -27,6 +29,12 @@ secret and is never sent to the browser.
 - All-day events are anchored to the calendar's own time zone
   (`X-WR-TIMEZONE`), not UTC, so they render as exactly one day regardless
   of the viewer's time zone
+- Configurable title → color-value rules ("Color rules"), so calendar panels
+  that color events via numeric thresholds (e.g. Business Calendar) can
+  highlight specific events without editing the panel every time
+- Multiple calendars per data source: add any number of additional ICS URLs,
+  fetched concurrently and merged into one combined, time-sorted result —
+  color rules apply across all of them automatically
 
 ## Installation
 
@@ -58,6 +66,76 @@ catalog), so it's installed manually:
 Click **Save & Test** — the backend fetches the feed and reports how many
 events it found in the next month.
 
+## Multiple calendars
+
+The ICS-URL field above is the **primary** calendar. To merge in more
+calendars, use **"Weitere Kalender"** (additional calendars) further down on
+the same page: click **"Kalender hinzufügen"** for each extra ICS feed, give
+it a name (used to fill the `calendar` response field, see below) and its
+URL.
+
+All configured calendars are fetched concurrently and their events merged
+into a single, time-sorted result — [color rules](#color-rules) are applied
+across the merged set, so a rule doesn't need to be duplicated per calendar.
+
+If one calendar fails to fetch or parse, it doesn't fail the whole query as
+long as at least one other configured calendar still succeeds: the panel
+gets the events from the working calendar(s) plus a warning notice naming
+the one that failed (visible via the panel's notice icon). "Save & Test"
+behaves the same way, naming any failed calendar in its message.
+
+## Color rules
+
+Google's ICS export doesn't include per-event color — Google only exposes
+that via its own (OAuth) API, never through the public iCal feed. Calendar
+panels that color events from data (e.g. Business Calendar) work around this
+by coloring events from a *numeric* field compared against panel-configured
+**Thresholds** (Standard options → Thresholds) — Business Calendar in
+particular only supports three color layouts (`frame`, `event`,
+`thresholds`), none of which read a color directly out of the data.
+
+"Color rules", configured on the data source itself (**Administration → Data
+Sources → Google Calendar ICS → Color rules**), bridge that gap: each rule
+maps a text pattern to a number, and the backend writes the value of the
+first matching rule into a new `color_value` field on every event.
+
+| Field | Description |
+|---|---|
+| Stichwort (pattern) | Case-insensitive substring matched against the event title. |
+| Wert (value) | Number written to `color_value` for matching events. Must match one of the threshold steps prepared in the panel (see below) — Grafana's threshold logic assigns the *highest step the value still reaches or exceeds*, not an exact match, so using the same numbers on both sides avoids a value landing on the wrong step. |
+
+Rules are evaluated top to bottom; the **first** matching rule wins. Events
+matching no rule (or when no rules are configured) get `color_value = 0`.
+Existing configurations without any color rules keep working exactly as
+before.
+
+**One-time panel setup** (no sync script, no automation — set this up once
+manually with some headroom for future categories):
+
+1. Panel → Standard options → **Thresholds**: prepare enough steps up front, e.g.
+
+   ```json
+   "thresholds": {
+     "mode": "absolute",
+     "steps": [
+       { "value": null, "color": "gray" },
+       { "value": 10, "color": "blue" },
+       { "value": 20, "color": "orange" },
+       { "value": 30, "color": "red" }
+     ]
+   }
+   ```
+
+2. Panel option **Colors** → `thresholds`
+3. Panel option **Data → Color field** → `color_value`
+
+As long as an unused threshold step is still free, adding a new category
+afterwards only means adding a rule in **Color rules** with a value matching
+one of the free steps — the panel itself doesn't need to be touched again.
+Once every prepared step is taken, a new step has to be added to the panel
+manually (there's no automatic sync between color rules and panel
+thresholds by design).
+
 ## Query options
 
 | Field | Description |
@@ -75,6 +153,8 @@ events it found in the next month.
 | `description` | string | Description |
 | `all_day` | bool | `true` for all-day events |
 | `uid` | string | Calendar event UID |
+| `color_value` | number | Value of the first matching [color rule](#color-rules), `0` if none match or none are configured |
+| `calendar` | string | Name of the [additional calendar](#multiple-calendars) the event came from; empty string for the primary calendar |
 
 ## Building a calendar view
 
